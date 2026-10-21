@@ -1,0 +1,12 @@
+# data of other teams must never be shared or used (course rules)
+Round_1_report/
+
+# python / latex noise
+__pycache__/
+*.pyc
+report/*.aux
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+

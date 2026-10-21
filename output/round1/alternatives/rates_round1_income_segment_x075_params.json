@@ -1,0 +1,41 @@
+{
+  "rule": {
+    "margins": {
+      "0": 0.04,
+      "1-5k": 0.035,
+      "10-20k": 0.03,
+      "20-40k": 0.03,
+      "40k+": 0.03,
+      "5-10k": 0.035
+    },
+    "tau": {
+      "0": 0.12,
+      "1-5k": 0.12,
+      "10-20k": 0.08,
+      "20-40k": 0.25,
+      "40k+": 0.25,
+      "5-10k": 0.1
+    },
+    "tail_rate": null,
+    "ramp_from": null,
+    "ramp_top": 0.25,
+    "band": "adjusted break-even + X",
+    "X": 0.075,
+    "cap": 0.989,
+    "floor": "by income segment (curse_floor_by_segment.csv)",
+    "phase_delta": 0.01,
+    "phase_width": 0.01
+  },
+  "model_params": {
+    "learning_rate": 0.05,
+    "max_leaf_nodes": 7,
+    "max_iter": 200,
+    "min_samples_leaf": 200,
+    "l2_regularization": 1.0,
+    "random_state": 0
+  },
+  "use_sex": false,
+  "source": "model refitted on PastLoans.csv (full-precision PDs); curse_floor_by_segment.csv for the adjusted break-even",
+  "command": "make_submission.py --adjusted-x 0.075 --cap 0.989 --phase-delta 0.01 --phase-width 0.01 --floor-by-segment --out output/round1/rates_round1_segfloor_x075.csv",
+  "sha256": "88ddd130f4d521df373dba1eefec286d59dec1bb44c52c78153e7b31c15d8128"
+}

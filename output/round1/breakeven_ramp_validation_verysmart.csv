@@ -1,0 +1,7 @@
+mixture,action,mean,P5,median,P95,P(profit < 5),P(rank 1),P(rank 3)
+very smart: best-responders (undercut data-driven 50 / + compromise 30 / undercut ramp 20),"compromise: model + 0.25 if PD <= 0.15, else ramp",26.062675728075202,13.302694829811204,29.756286733379028,32.13141875048551,0.0,0.06333333333333334,0.16333333333333333
+very smart: best-responders (undercut data-driven 50 / + compromise 30 / undercut ramp 20),data-driven fitted on the 'mixed' profile,30.1615955966401,12.552610739432069,33.02741255023683,48.354297272124136,0.0,0.21,0.17
+very smart: best-responders (undercut data-driven 50 / + compromise 30 / undercut ramp 20),data-driven: best rate per category (steps),56.44599668887574,21.4307587339687,58.38013679666297,84.62346330066525,0.0,0.7566666666666667,0.03
+very smart: best-responders (undercut data-driven 50 / + compromise 30 / undercut ramp 20),data-driven: interpolated between categories,56.281842951050905,21.204686072557283,57.12503530178671,84.93676489987406,0.0,0.7566666666666667,0.03
+very smart: best-responders (undercut data-driven 50 / + compromise 30 / undercut ramp 20),flat net 0.828,4.029047655660991,3.2742174520368446,3.9817622247631483,4.9751811486076996,0.9566666666666667,0.0,0.98
+very smart: best-responders (undercut data-driven 50 / + compromise 30 / undercut ramp 20),ramp 0.65->0.828 (hand-made),4.449158429434284,3.348869605386096,4.141461066760027,5.865275098097231,0.8633333333333333,0.0,0.9666666666666667

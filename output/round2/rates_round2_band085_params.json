@@ -1,0 +1,37 @@
+{
+  "rule": {
+    "margins": {
+      "0": 0.04,
+      "1-5k": 0.035,
+      "10-20k": 0.03,
+      "20-40k": 0.03,
+      "40k+": 0.03,
+      "5-10k": 0.035
+    },
+    "tau": {
+      "0": 0.12,
+      "1-5k": 0.12,
+      "10-20k": 0.08,
+      "20-40k": 0.25,
+      "40k+": 0.25,
+      "5-10k": 0.1
+    },
+    "tail_rate": 0.85,
+    "ramp_from": null,
+    "ramp_top": 0.25
+  },
+  "model_params": {
+    "learning_rate": 0.05,
+    "max_leaf_nodes": 7,
+    "max_iter": 200,
+    "min_samples_leaf": 200,
+    "l2_regularization": 1.0,
+    "random_state": 0
+  },
+  "use_sex": false,
+  "applications": "Round_1_report_new/NewApplications_Lender2_Round2.csv",
+  "training": "PastLoans.csv + round-1 applicants with observed defaults",
+  "source": "model refitted (full-precision PDs); curse_floor.csv for the adjusted break-even",
+  "command": "make_submission.py --applications Round_1_report_new/NewApplications_Lender2_Round2.csv --net 0.85 --augment-round1 --out output/round2/rates_round2_band085.csv",
+  "sha256": "ac6fc6bdc72d87ea0c01d5b2dc936402305cad39ee32f3aa052bb7049c5d1d01"
+}

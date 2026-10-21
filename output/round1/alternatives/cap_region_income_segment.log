@@ -1,0 +1,45 @@
+income-segment floor
+cap region: 2035 applicants (PD from 0.254), expected default (full info) 0.307
+likeus done
+smart done
+clones done
+verysmart done
+mixed done
+netters done
+modelfollowers done
+
+=== Cap region by rival profile ===
+       profile                           option  total expected profit (M)  expected loans won in cap region  their expected default  profit on them (M)
+        likeus               keep the cap 0.989                     12.608                           106.878                   0.468               0.063
+        likeus       no offer in the cap region                     12.545                             0.000                     NaN               0.000
+        likeus cap up to 30% PD, no offer above                     12.577                            35.283                   0.451               0.032
+         smart               keep the cap 0.989                     22.130                            69.206                   0.329               0.232
+         smart       no offer in the cap region                     21.898                             0.000                     NaN               0.000
+         smart cap up to 30% PD, no offer above                     22.024                            32.611                   0.304               0.126
+        clones               keep the cap 0.989                     17.349                             3.117                   0.396               0.006
+        clones       no offer in the cap region                     17.343                             0.000                     NaN               0.000
+        clones cap up to 30% PD, no offer above                     17.345                             1.172                   0.382               0.003
+     verysmart               keep the cap 0.989                     26.650                             0.000                     NaN               0.000
+     verysmart       no offer in the cap region                     26.650                             0.000                     NaN               0.000
+     verysmart cap up to 30% PD, no offer above                     26.650                             0.000                     NaN               0.000
+         mixed               keep the cap 0.989                      8.827                            64.094                   0.406               0.116
+         mixed       no offer in the cap region                      8.711                             0.000                     NaN               0.000
+         mixed cap up to 30% PD, no offer above                      8.765                            23.028                   0.381               0.053
+       netters               keep the cap 0.989                     29.922                            24.761                   0.328               0.083
+       netters       no offer in the cap region                     29.839                             0.000                     NaN               0.000
+       netters cap up to 30% PD, no offer above                     29.881                            10.978                   0.307               0.041
+modelfollowers               keep the cap 0.989                      7.635                             1.656                   0.597              -0.003
+modelfollowers       no offer in the cap region                      7.638                             0.000                     NaN               0.000
+modelfollowers cap up to 30% PD, no offer above                      7.638                             0.561                   0.556              -0.001
+
+=== Prior-weighted total expected profit (M EUR) ===
+option
+cap up to 30% PD, no offer above    16.587
+keep the cap 0.989                  16.630
+no offer in the cap region          16.542
+
+=== Prior-weighted profit on the cap-region applicants (M EUR) ===
+option
+cap up to 30% PD, no offer above    0.046
+keep the cap 0.989                  0.088
+no offer in the cap region          0.000

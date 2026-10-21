@@ -1,0 +1,1 @@
+[lock-fallback] C:\Users\berna\Documents\introduction-to-finance\project\output\round1\band_matrix_best_response.csv is locked (Permission denied); written to C:\Users\berna\Documents\introduction-to-finance\project\analysis\ultra\band_matrix_best_response.csv instead

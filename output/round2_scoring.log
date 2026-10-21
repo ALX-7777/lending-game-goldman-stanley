@@ -1,0 +1,18 @@
+past loans 100,000 (default 0.0995) | round-1 applicants 100,000 (default 0.0995) | round-2 applicants 100,000
+signal2 == 0 share: past 0.209, round 1 0.212, round 2 0.208
+past-loans model on the 100,000 round-1 applicants: AUC 0.7275, log-loss 0.2932, mean PD 0.0997 vs realized 0.0995
+augmented model (past + round 1, 5-fold on the round-1 rows): AUC 0.7283, log-loss 0.2929
+AUC gain from augmentation: +0.0008
+
+round-2 applicants scored with the augmented model (past + round 1):
+         applicants  mean PD
+segment                     
+0             17322   0.1987
+1-5k           6080   0.1487
+10-20k        25880   0.0607
+20-40k        12761   0.0225
+40k+           8362   0.0067
+5-10k         29595   0.1242
+overall mean PD round 2: 0.0993; PD bands: 0-5%: 32,278, 5-10%: 22,752, 10-15%: 23,142, 15-20%: 10,878, 20-25%: 7,150, 25-30%: 2,816, 30-100%: 984
+
+written C:\Users\berna\Documents\introduction-to-finance\project\output\round2\new_applications_scored.csv and scoring_check.txt

@@ -1,0 +1,65 @@
+likeus: 500 draws (exact types, fair ties)...
+smart: 500 draws (exact types, fair ties)...
+clones: 500 draws (exact types, fair ties)...
+verysmart: 500 draws (exact types, fair ties)...
+mixed: 500 draws (exact types, fair ties)...
+netters: 500 draws (exact types, fair ties)...
+modelfollowers: 500 draws (exact types, fair ties)...
+
+=== Prior-weighted results, 500 rival pairs per profile (likeus 40 / smart 20 / clones 10 / very smart 10 / mixed 10 / netters 5 / model-followers 5) ===
+                       mean | prior  se(mean)  P(first) | prior  P(last) | prior  se P(last)  P5 | prior  min mean over profiles  mean | likeus  P(first) | likeus  P(last) | likeus
+segment floor + 0.020        14.232     0.116             0.842            0.003       0.002       7.310                   6.623         11.160              0.692             0.008
+segment floor + 0.030        14.838     0.123             0.830            0.003       0.002       7.547                   6.837         11.532              0.674             0.008
+segment floor + 0.050        15.928     0.136             0.780            0.007       0.002       7.914                   7.193         12.119              0.582             0.018
+segment floor + 0.075        17.093     0.152             0.703            0.027       0.004       8.254                   7.543         12.585              0.440             0.062
+segment floor + 0.100        18.065     0.167             0.644            0.054       0.006       8.578                   7.693         12.794              0.342             0.126
+pooled floor + 0.030         14.236     0.116             0.836            0.010       0.003       7.346                   6.696         11.635              0.718             0.026
+pooled floor + 0.050         15.463     0.131             0.781            0.016       0.003       7.853                   7.102         12.366              0.620             0.036
+pooled floor + 0.075         16.758     0.148             0.701            0.034       0.005       8.274                   7.495         12.927              0.470             0.076
+
+Declared criterion, P(last) <= 3%: eligible = ['segment floor + 0.020', 'segment floor + 0.030', 'segment floor + 0.050', 'segment floor + 0.075', 'pooled floor + 0.030', 'pooled floor + 0.050']; CHOICE = segment floor + 0.075
+
+Declared criterion, P(last) <= 5%: eligible = ['segment floor + 0.020', 'segment floor + 0.030', 'segment floor + 0.050', 'segment floor + 0.075', 'pooled floor + 0.030', 'pooled floor + 0.050', 'pooled floor + 0.075']; CHOICE = segment floor + 0.075
+
+=== Paired difference, segment floor minus pooled floor at equal X (M EUR; mean +/- se over draws; prior-weighted and by profile) ===
+X = 0.030: prior-weighted +0.60 +/- 0.01   | likeus: -0.10+/-0.01  smart: +0.91+/-0.05  clones: +1.20+/-0.06  verysmart: +2.34+/-0.05  mixed: +0.14+/-0.02  netters: +1.76+/-0.06  modelfollowers: +0.12+/-0.01
+X = 0.050: prior-weighted +0.46 +/- 0.02   | likeus: -0.25+/-0.01  smart: +0.78+/-0.06  clones: +1.18+/-0.05  verysmart: +1.86+/-0.06  mixed: +0.09+/-0.02  netters: +1.77+/-0.06  modelfollowers: +0.11+/-0.01
+X = 0.075: prior-weighted +0.33 +/- 0.02   | likeus: -0.34+/-0.02  smart: +0.68+/-0.06  clones: +1.14+/-0.05  verysmart: +1.21+/-0.07  mixed: +0.05+/-0.02  netters: +1.79+/-0.06  modelfollowers: +0.09+/-0.01
+
+=== Mean profit by profile (M EUR) ===
+profile                likeus  smart  clones  verysmart  mixed  netters  modelfollowers
+action                                                                                 
+segment floor + 0.020   11.16  18.79   14.71      23.43   6.62    22.93            7.75
+segment floor + 0.030   11.53  19.70   15.34      24.68   6.84    24.17            7.84
+segment floor + 0.050   12.12  21.41   16.51      27.02   7.19    26.62            7.90
+segment floor + 0.075   12.59  23.38   17.89      29.67   7.54    29.63            7.83
+segment floor + 0.100   12.79  25.13   19.21      32.07   7.82    32.52            7.69
+pooled floor + 0.030    11.64  18.79   14.14      22.34   6.70    22.41            7.72
+pooled floor + 0.050    12.37  20.63   15.33      25.16   7.10    24.86            7.79
+pooled floor + 0.075    12.93  22.69   16.75      28.45   7.50    27.84            7.74
+
+=== P(first) by profile ===
+profile                likeus  smart  clones  verysmart  mixed  netters  modelfollowers
+action                                                                                 
+segment floor + 0.020   0.692  0.870   0.984        1.0  0.970    1.000           0.910
+segment floor + 0.030   0.674  0.860   0.984        1.0  0.972    1.000           0.866
+segment floor + 0.050   0.582  0.844   0.952        1.0  0.964    1.000           0.732
+segment floor + 0.075   0.440  0.828   0.906        1.0  0.916    1.000           0.584
+segment floor + 0.100   0.342  0.800   0.870        1.0  0.874    1.000           0.456
+pooled floor + 0.030    0.718  0.868   0.894        1.0  0.964    1.000           0.794
+pooled floor + 0.050    0.620  0.846   0.858        1.0  0.952    1.000           0.654
+pooled floor + 0.075    0.470  0.830   0.816        1.0  0.904    0.998           0.508
+
+=== P(last) by profile ===
+profile                likeus  smart  clones  verysmart  mixed  netters  modelfollowers
+action                                                                                 
+segment floor + 0.020   0.008  0.000   0.000        0.0    0.0      0.0           0.000
+segment floor + 0.030   0.008  0.000   0.000        0.0    0.0      0.0           0.000
+segment floor + 0.050   0.018  0.000   0.000        0.0    0.0      0.0           0.000
+segment floor + 0.075   0.062  0.010   0.000        0.0    0.0      0.0           0.012
+segment floor + 0.100   0.126  0.010   0.000        0.0    0.0      0.0           0.026
+pooled floor + 0.030    0.026  0.000   0.000        0.0    0.0      0.0           0.000
+pooled floor + 0.050    0.036  0.008   0.002        0.0    0.0      0.0           0.000
+pooled floor + 0.075    0.076  0.012   0.002        0.0    0.0      0.0           0.020
+
+figure written: output/round1/figures/fig13b_final_margin_v2.png

@@ -1,0 +1,570 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\meur}{M\texteuro}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Lending Game -- Stage 1 Strategy Note\\[2pt]
+\large Team ``Lender 2'' -- Introduction to Finance for Data Scientists, HEC Paris}
+\author{Internal note for the team's review before the October 17 submission}
+\date{October 13, 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Summary}
+\begin{itemize}
+  \item We are lender 2. For the 100,000 new applicants we observe sex, employment, marital status, income and our
+        private signal $s_2$; the competitors observe $s_1$ or $s_3$ instead. The past-loans file contains all
+        three signals and the outcome, which lets us \emph{measure} how much the competitors know that we do not,
+        and \emph{simulate} the whole market before submitting anything.
+  \item Default is driven mostly by income and employment. Each private signal adds a little (AUC $0.717 \to 0.735$),
+        the three together add more ($0.760$). The resulting hidden information has a standard deviation of
+        4.5 points of default probability -- larger than any sensible margin -- and is concentrated at low income
+        (7.1 points at zero income, 0.3 points above 40k).
+  \item Applicants take the cheapest offer, so we win a loan exactly when the competitors' signals were bad: the
+        winner's curse. Naive pricing (break-even $+3\%$) earns 1.7~\meur{} on average over twelve competitor
+        scenarios and loses up to 2.2~\meur{}.
+  \item Our rule: break-even plus a 3--4\% margin when our estimated PD is below an income-dependent threshold
+        (8--12\% below 20k of income, 25\% above); otherwise an 82.8\% ``lender of last resort'' offer, which is
+        only accepted when nobody else lends cheaper. Average 6.4~\meur{} over the twelve scenarios, worst
+        scenario $+1.2$~\meur{}, market share about 22\%, first in every scenario.
+  \item The level of that last-resort rate is the decisive choice of stage 1. If another team also uses a safety
+        net with low thresholds, the 10--25\% PD band (34\% of applicants) becomes a price war worth 65 to
+        190~\meur{} to whoever is lowest within 2\%, against 5~\meur{} for the whole normal game. We chose 0.828:
+        it wins that war against any competitor net at 0.85 or above and costs only 0.35~\meur{} if nobody nets.
+  \item The submission contains an offer for every applicant: 54,418 normal offers between 3.0\% and 17.6\%,
+        and 45,582 offers at 82.8\%.
+\end{itemize}
+
+\section{The game and what we optimize}
+Each of 100,000 applicants asks for a 10,000~\texteuro{} loan from three competing lenders. Lender $k$ offers a rate
+$r(k,i)$ or nothing. One third of the applicants prefers each lender and is willing to pay 2\% more to borrow from
+it: a type-$k$ applicant takes the lowest of the three rates after subtracting $0.02$ from lender $k$'s rate.
+If the loan is repaid we earn $10{,}000\,r$; if the borrower defaults we lose $10{,}000$ (zero recovery).
+Our score is total profit, judged in level and in rank against the two other teams (10\% of the grade for
+stage~1, 20\% for stage~2; the report is 70\%).
+
+With tens of thousands of loans, sampling noise is small (the standard deviation of total profit is about
+0.5~\meur{} for 30,000 loans). The real uncertainty is strategic: what the other teams do. The stage-1 goal is
+therefore a strategy that is profitable against any plausible competitor, never loses money, and lets us learn
+the competitors' behaviour for stage~2, where the aggressive moves belong.
+
+\section{What the data says}
+Past loans: 100,000 rows, 9.95\% defaults, no missing values; the new applications match the past population on
+every moment we checked (shares of employment status, income quantiles, signal distribution). Table~\ref{tab:data}
+shows the main determinants of default.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lrr@{\hskip 1.2cm}lrr}
+\toprule
+Income & Share & Default & Other variable & Share & Default\\
+\midrule
+0           & 17.0\% & 20.2\% & unemployed & 14.3\% & 15.6\%\\
+1--5k       &  6.1\% & 15.1\% & student    & 16.2\% & 12.9\%\\
+5--10k      & 29.9\% & 12.5\% & retired    & 11.6\% &  9.0\%\\
+10--20k     & 25.9\% &  5.8\% & employed   & 57.9\% &  7.9\%\\
+20--40k     & 12.8\% &  2.2\% & $s_2 = 0$ (``no signal'') & 20.9\% & 9.7\%\\
+40--80k     &  5.1\% &  0.8\% & $s_2 \in (0, 0.2]$   & 12.9\% & 14.9\%\\
+80k+        &  3.1\% &  0.1\% & $s_2 \in (0.8, 1]$   & 15.4\% &  7.9\%\\
+\bottomrule
+\end{tabular}
+\caption{Default rates in the past loans. Women default slightly more than men (10.7\% vs 9.4\%) and singles more
+than married applicants (10.8\% vs 9.4\%).}
+\label{tab:data}
+\end{table}
+
+Three facts matter for the strategy.
+\begin{itemize}
+  \item \textbf{Income dominates.} Default goes from 20\% at zero income to 0.1\% above 80k. The signals are
+        weaker and non-linear: 15\% default in the lowest bucket, flat around 8\% above $0.6$.
+  \item \textbf{A signal of exactly zero means ``no signal'', not ``worst score''.} 21\% of each signal is exactly
+        0, and those applicants default at the population average. A model that treats 0 as a very low score
+        overprices a fifth of the applicants. Tree models isolate the spike on their own; we also add an explicit
+        indicator.
+  \item \textbf{The three signals are different information.} Their pairwise correlation is only $0.18$ and the
+        zeros are independent across signals. Hence the competitors genuinely know things about each applicant
+        that we do not -- the source of adverse selection in this game.
+\end{itemize}
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lcc@{\hskip 1.2cm}lc}
+\toprule
+Model (out of sample, 5-fold) & AUC & log-loss & Income segment & $\sigma(U)$ \\
+\midrule
+$X$ only (sex, employment, married, income) & 0.717 & 0.2951 & 0       & 0.071\\
+$X + s_2$ (us)                              & 0.735 & 0.2908 & 1--5k   & 0.050\\
+$X + s_1$ (lender 1)                        & 0.735 & 0.2908 & 5--10k  & 0.052\\
+$X + s_3$ (lender 3)                        & 0.736 & 0.2904 & 10--20k & 0.025\\
+$X + s_1 + s_2 + s_3$ (full information)    & 0.760 & 0.2828 & 20--40k & 0.008\\
+                                            &       &        & 40k+    & 0.003\\
+\bottomrule
+\end{tabular}
+\caption{Left: predictive power of the information sets. Right: standard deviation of the hidden information
+$U = p_{\text{full}} - \hat p_2$, i.e.\ how much the full-information default probability deviates from our own
+estimate. Overall $\sigma(U) = 0.045$.}
+\label{tab:models}
+\end{table}
+
+Table~\ref{tab:models} quantifies the asymmetry. Our model and the competitors' are equally good (same data, same
+method, symmetric signals), but a lender who saw all three signals would correct our estimate by $\pm 4.5$ points
+of PD on average. At high income the competitors' signals are nearly worthless ($\sigma(U) = 0.3$ points); at zero
+income they move the PD by 7 points. This map tells us where we can compete and where we cannot.
+
+\section{The economics behind the pricing rule}
+
+\subsection{Break-even rate}
+Interest is received only if the borrower repays, so the expected profit of a loan at rate $r$ to a borrower with
+default probability $p$ is $10{,}000\,[(1-p)\,r - p]$ and the break-even rate is
+\begin{equation}
+  r^*(p) = \frac{p}{1-p}, \qquad\text{not } r = p.
+  \label{eq:breakeven}
+\end{equation}
+The lecture formula $\text{NPV} = R - \Prob[\text{default}]$ assumes the interest is paid at issuance. A team
+applying it literally and pricing $r = p + m$ offers 23\% to a 20\%-PD applicant whose break-even is 25\%; it wins
+those loans and loses money on them. We keep that behaviour as one of the competitor archetypes.
+
+\subsection{The winner's curse through the competitors' signals}
+Let $\hat p_2 = \E[D \mid X, s_2]$ be our estimate and $p = \E[D \mid X, s_1, s_2, s_3] = \hat p_2 + U$ the
+full-information probability, with $\E[U \mid X, s_2] = 0$. Our estimate is unbiased (Table~\ref{tab:calib}), but
+the applicants who \emph{accept} our offer are not a random sample: an applicant takes our offer when the
+competitors' effective rates are above ours, and competitors price higher when their signals are bad, i.e.\ when
+$U$ is high. Writing $Q_i(r)$ for the probability that applicant $i$ accepts our offer at rate $r$ and
+$\pi_i(r) = \E[D_i \mid \text{accepts at } r]$ for the default rate of the accepting borrowers, the expected
+profit of the offer is
+\begin{equation}
+  \Pi_i(r) = 10{,}000 \cdot Q_i(r)\,\big[(1-\pi_i(r))\,r - \pi_i(r)\big], \qquad \pi_i(r) > \hat p_{2,i}.
+  \label{eq:profit}
+\end{equation}
+This is the lecture's $M - \E[U \mid U > M - \bar R] < M$ with the acceptance event generated by the competitors'
+information rather than by the borrower's. Both $Q_i$ and $\pi_i$ depend on what the competitors do, which is why
+we simulate them instead of adding a fixed margin. The curse is measurable on the past loans: with naive
+break-even $+3\%$ pricing against competitors doing the same, the loans we win default at 10.0\% while we
+predicted 8.1\%; pricing \emph{higher} makes it worse (12.1\% realized vs 8.7\% predicted at $+5\%$), because a
+high price only wins the applicants everyone else found risky.
+
+\subsection{The 2\% preference: fans versus everyone}
+For an applicant whose best competitor rate is $c$, our demand is a step function: we win our own fans (one third
+of applicants) if $r < c + 0.02$, and all three types if $r < c - 0.02$. Undercutting by 4 points therefore
+triples volume. Ignoring selection, the all-market price beats the fans-only price when
+$3[(1-p)(r-0.04) - p] > (1-p)\,r - p$, i.e.\ when
+\begin{equation}
+  r > \frac{p}{1-p} + 0.06 .
+\end{equation}
+Grabbing market share pays only when the competitors sit more than 4 points above break-even, which teams
+equipped with a decent PD model will not do. The natural target in the safe segments is therefore our fans, at
+break-even plus a few points. Simulation confirms it: pricing at break-even $+1\%$ to gain share gives a 55\%
+market share and a loss of 2~\meur{}, and drags the competitors into losses as well.
+
+\subsection{The lender of last resort}
+Applicants have no outside option: whoever receives at least one offer borrows. An offer at a very high rate
+$r_{\text{net}}$ is accepted only when every competitor's effective rate is above ours or absent, so it costs
+nothing when the competitors lend, and when both reject the applicant we lend at $r_{\text{net}}$ to a borrower with
+default probability $d = \E[D \mid \text{both reject}]$. The loan is profitable if
+\begin{equation}
+  (1-d)\,r_{\text{net}} - d > 0 \iff r_{\text{net}} > \frac{d}{1-d}.
+  \label{eq:net}
+\end{equation}
+Table~\ref{tab:pool} evaluates the abandoned pool on the past loans for competitors who reject above a PD
+threshold: as long as they reject at 25\% or below, any rate above 74\% is profitable; if they reject only above
+30\% the pool is unprofitable at any rate but represents 0.2\% of applicants (a loss of about 0.05~\meur{} at
+worst). This ``safety net'' replaces ``no offer'' everywhere in our submission. Its \emph{level} matters only
+against other lenders' nets, and Section~\ref{sec:net} shows that this contest dwarfs everything else in the game.
+
+\begin{table}[h]\centering\footnotesize
+\begin{tabular}{crrrrrrr}
+\toprule
+Competitors reject if PD $>$ & Pool & Default $d$ & Break-even $d/(1-d)$ & \multicolumn{4}{c}{Profit per loan (\texteuro) at a net of}\\
+ & & & & 0.989 & 0.90 & 0.80 & 0.70\\
+\midrule
+15\% & 14.4\% & 24.3\% & 32\% & 5,061 & 4,387 & 3,630 & 2,873\\
+20\% &  5.3\% & 29.9\% & 43\% & 3,934 & 3,311 & 2,610 & 1,910\\
+25\% &  0.8\% & 42.6\% & 74\% & 1,420 &   909 &   335 &  $-240$\\
+30\% &  0.2\% & 51.2\% & none & $-289$ & $-724$ & $-1,212$ & $-1,700$\\
+\bottomrule
+\end{tabular}
+\caption{The applicants both competitors would reject (their own PD estimate above the threshold), on the past loans.}
+\label{tab:pool}
+\end{table}
+
+\section{Methodology}
+
+\subsection{Default probability models}
+Gradient-boosted trees (\code{HistGradientBoostingClassifier}) on employment dummies, marital status, income,
+$\log(1+\text{income})$, the signal and a ``signal $=0$'' indicator. Hyper-parameters were chosen by 3-fold
+cross-validated log-loss (the right metric, since we need calibrated probabilities, not just ranking):
+learning rate 0.05, 7 leaves, 200 iterations, at least 200 observations per leaf, $L_2 = 1$. Four models are
+fitted with the same recipe: ours ($X + s_2$), each competitor's ($X + s_1$, $X + s_3$) and the full-information
+model ($X + s_1 + s_2 + s_3$). All predictions used in the simulations are 5-fold out-of-sample, so no lender is
+clairvoyant in the simulator; the model used to price the new applications is refitted on all 100,000 past loans.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lcccccccccc}
+\toprule
+Decile of $\hat p_2$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10\\
+\midrule
+Predicted & 0.007 & 0.022 & 0.035 & 0.054 & 0.077 & 0.101 & 0.123 & 0.145 & 0.179 & 0.253\\
+Realized  & 0.006 & 0.021 & 0.033 & 0.053 & 0.077 & 0.102 & 0.122 & 0.143 & 0.182 & 0.256\\
+\bottomrule
+\end{tabular}
+\caption{Calibration of our model (out of sample).}
+\label{tab:calib}
+\end{table}
+
+Sex is excluded from the final model: with or without it the out-of-sample AUC is 0.7349 and the log-loss
+0.2908. It adds nothing, and pricing on sex would be illegal for a real lender, so we drop it at zero cost.
+
+\subsection{Market simulator}
+\code{lending\_game/simulator.py} implements the rules literally: applicant types are drawn uniformly at random
+(the rules state one third each), the 2\% preference is subtracted from the preferred lender's rate, the lowest
+effective rate wins, ties are broken at random, and the profit is computed from the realized defaults of the past
+loans. We also compute an ``expected'' profit using the full-information PD instead of the realized outcome: it has
+the same mean (the full-information model is calibrated) but much less noise, so it is the objective of the
+optimizer, while the realized profit is reported as a check. Every result is averaged over three independent
+type draws.
+
+\subsection{Competitor scenarios}
+We expect the other teams to work with the same data and similar boosted-tree models, so no edge can come from the
+model itself; the uncertainty is in their pricing rule. Each archetype in Table~\ref{tab:archetypes} maps a
+competitor's own PD estimate to a rate, and twelve scenarios combine them: eight symmetric
+(\code{base/base}, \code{aggressive/aggressive}, \code{cautious/cautious}, \code{no\_reject/no\_reject},
+\code{slide/slide}, \code{slide\_norej/slide\_norej}, \code{smart/smart}, \code{base\_net/base\_net}) and four mixed
+(\code{base/aggressive}, \code{cautious/slide}, \code{smart/base}, \code{loose/tight}). The \code{clone}
+archetype -- a team that reasons exactly like us -- is studied separately in Section~\ref{sec:net}.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{llll}
+\toprule
+Archetype & Rate & Rejects if PD $>$ & Instead of ``no offer''\\
+\midrule
+base        & $p/(1-p) + 3\%$ & 25\% & --\\
+aggressive  & $p/(1-p) + 1\%$ & never & --\\
+cautious    & $p/(1-p) + 5\%$ & 20\% & --\\
+no\_reject  & $p/(1-p) + 3\%$ & never & --\\
+loose / tight & $p/(1-p) + 2\%$ / $+4\%$ & 30\% / 20\% & --\\
+slide / slide\_norej & $p + 3\%$ (lecture formula) & 25\% / never & --\\
+smart       & $p/(1-p)$ + 2--6\% rising as income falls & 25\% & 0.99 safety net\\
+base\_net   & $p/(1-p) + 3\%$ & 25\% & 0.99 safety net\\
+clone       & our own rule (Table~\ref{tab:rule}) & 8--25\% as ours & net of its choosing\\
+\bottomrule
+\end{tabular}
+\caption{Competitor archetypes, each applied to the competitor's own out-of-sample PD estimate.}
+\label{tab:archetypes}
+\end{table}
+
+\subsection{Our pricing rule and its optimization}
+For applicant $i$ with our PD estimate $\hat p_i$ and income segment $s_i$,
+\begin{equation}
+  r_i = \begin{cases}
+     \dfrac{\hat p_i}{1-\hat p_i} + m(s_i) & \text{if } \hat p_i \le \tau(s_i),\\[8pt]
+     r_{\text{net}} & \text{otherwise.}
+  \end{cases}
+  \label{eq:rule}
+\end{equation}
+The parameters are a margin $m$ and a threshold $\tau$ per income segment (six segments: 0, 1--5k, 5--10k,
+10--20k, 20--40k, 40k+) and the net rate. They are chosen by coordinate descent on grids (margins 0.5--10\%,
+thresholds 4--100\%, net in $\{\text{none}, 0.5, \dots, 0.989\}$) to maximize the expected profit averaged over the
+twelve scenarios and three type draws, evaluated on the past loans. A richer rule with margins by segment
+$\times$ risk tercile improved the objective by only 0.2\% and was discarded. The net rate was then fixed by the
+dedicated analysis of Section~\ref{sec:net}.
+
+\section{Results}
+
+\subsection{The chosen rule}
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Segment & New applicants & Mean $\hat p$ & Margin $m$ & Threshold $\tau$ & Offered the net & Median normal rate\\
+\midrule
+0       & 17,159 & 0.201 & 4.0\% & 12\% & 92\% & 17.4\%\\
+1--5k   &  6,142 & 0.150 & 3.5\% & 12\% & 74\% & 15.7\%\\
+5--10k  & 29,870 & 0.126 & 3.5\% & 10\% & 69\% & 12.3\%\\
+10--20k & 25,766 & 0.058 & 3.0\% &  8\% & 18\% &  8.0\%\\
+20--40k & 12,829 & 0.023 & 3.0\% & 25\% &  0\% &  5.3\%\\
+40k+    &  8,234 & 0.006 & 3.0\% & 25\% &  0\% &  3.4\%\\
+\bottomrule
+\end{tabular}
+\caption{Optimized parameters and their effect on the new applications; $r_{\text{net}} = 0.828$.}
+\label{tab:rule}
+\end{table}
+
+The optimizer's answer is simple to state: \emph{compete normally where the competitors cannot know more than
+us; where they can, either take the clearly safe applicants or be the lender of last resort -- never in
+between.} Above 20k of income the thresholds are high and we lend to almost everyone at break-even $+3\%$. Below
+20k, any applicant whose PD exceeds 8--12\% gets the net. The margins are not lower at high income because, with
+the 2\% preference, cutting the margin from 3\% to 1\% does not win any non-fan and loses two thirds of the
+profit on the fans (Section~3.3).
+
+\subsection{Comparison with naive strategies}
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Strategy (realized profit on the past loans, 12 scenarios) & Mean & Worst scenario & Mean share\\
+\midrule
+Break-even $+3\%$, lend to everyone                 & 1.7~\meur{} & $-2.2$~\meur{} & 32\%\\
+Break-even $+3\%$, no offer if PD $> 25\%$           & 2.3~\meur{} & $-1.9$~\meur{} & 32\%\\
+Break-even $+3\%$, net at 0.989 instead of no offer & 2.9~\meur{} & $-1.9$~\meur{} & 32\%\\
+\textbf{Optimized rule (net 0.828)}                  & \textbf{6.4~\meur{}} & $\mathbf{+1.2}$~\meur{} & 22\%\\
+\bottomrule
+\end{tabular}
+\caption{Each strategy against the same twelve competitor scenarios.}
+\label{tab:strategies}
+\end{table}
+
+\subsection{Scenario by scenario}
+\begin{table}[h]\centering\footnotesize
+\begin{tabular}{lrrrrrr}
+\toprule
+Scenario (lender 1 / lender 3) & Our share & Our profit & $\hat p_2$ on won & Realized default & Lender 1 & Lender 3\\
+\midrule
+base / base                 & 21.7\% &  5.1 & 0.054 & 0.068 &  3.2 &  3.2\\
+aggressive / aggressive     &  9.1\% &  1.2 & 0.049 & 0.064 & $-4.0$ & $-4.0$\\
+cautious / cautious         & 42.7\% & 24.8 & 0.066 & 0.076 &  6.5 &  6.2\\
+no\_reject / no\_reject     & 20.8\% &  4.7 & 0.046 & 0.053 &  2.3 &  2.5\\
+slide / slide               & 19.4\% &  4.4 & 0.051 & 0.067 & $-1.1$ & $-0.9$\\
+slide\_norej / slide\_norej & 18.6\% &  4.0 & 0.043 & 0.050 & $-2.2$ & $-1.9$\\
+smart / smart               & 24.7\% &  6.4 & 0.057 & 0.067 &  6.2 &  6.3\\
+base\_net / base\_net       & 21.7\% &  5.1 & 0.054 & 0.068 &  3.2 &  3.2\\
+base / aggressive           & 12.6\% &  2.2 & 0.050 & 0.061 & $-1.1$ & $-2.1$\\
+cautious / slide            & 27.2\% &  8.7 & 0.056 & 0.071 &  0.3 &  2.7\\
+smart / base                & 23.0\% &  5.6 & 0.055 & 0.068 &  3.3 &  5.5\\
+loose / tight               & 20.0\% &  5.0 & 0.054 & 0.067 &  2.6 &  1.9\\
+\bottomrule
+\end{tabular}
+\caption{Optimized rule: realized profits in \meur{}, averaged over three type draws.}
+\label{tab:scenarios}
+\end{table}
+
+We are profitable in every scenario and first in every one of them; the closest contests are \code{smart/smart}
+(6.4~\meur{} against 6.2--6.3~\meur{}, two competitors who reason like us above a 25\% threshold and keep their
+own 10--25\% PD business at fat margins) and \code{smart/base} (5.6 against 5.5). When the competitors are
+aggressive they lose 4~\meur{} each while we keep $+1.2$~\meur{}. The curse is tamed but visible: the loans we win
+default about 1.4 points more than we predict (6.8\% vs 5.4\% in the base scenario), against 2 points with naive
+pricing. The 25~\meur{} of the cautious scenario is the net at work on a 5\% abandoned pool; we do not count on
+it.
+
+\subsection{Where the profit comes from}
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Segment & Applicants & Share won & Mean rate of won loans & $\hat p_2$ on won & Realized default & Profit\\
+\midrule
+0       & 17,035 &  7.9\% & 79.6\% & 0.180 & 0.298 & 0.27~\meur{}\\
+1--5k   &  6,125 & 12.5\% & 67.8\% & 0.106 & 0.112 & 0.27~\meur{}\\
+5--10k  & 29,904 & 14.4\% & 60.8\% & 0.080 & 0.100 & 0.68~\meur{}\\
+10--20k & 25,923 & 31.9\% & 21.7\% & 0.046 & 0.053 & 1.73~\meur{}\\
+20--40k & 12,780 & 33.9\% &  5.4\% & 0.022 & 0.023 & 1.24~\meur{}\\
+40k+    &  8,233 & 33.2\% &  3.6\% & 0.006 & 0.007 & 0.80~\meur{}\\
+\bottomrule
+\end{tabular}
+\caption{Optimized rule in the base scenario (one type draw). Above 10k of income we win one third of the
+applicants -- our fans -- with no curse to speak of; below 10k most won loans are net loans to abandoned
+applicants, which default at 30\% but are priced at 82.8\%.}
+\label{tab:segments}
+\end{table}
+
+\subsection{Robustness of the thresholds}
+Raising the thresholds to ``look more moderate'' is expensive (Table~\ref{tab:tau}): at $\tau = 25\%$ everywhere
+the mean falls from 6.6 to 3.1~\meur{} and the worst scenario becomes a loss of 1.1~\meur{}. The low thresholds
+are not an artefact of the scenario where both competitors reject a lot: re-optimizing without that scenario, only
+against competitors who never reject anyone, or only against rejecting competitors, returns \emph{identical}
+thresholds. What drives them is the curse itself: at low income, the 10--25\% PD band is where the competitors'
+hidden information is largest, and competing for it at any normal rate loses money. Removing the net altogether
+(plain ``no offer'') keeps the worst case but costs 2.0~\meur{} on average.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Variant (same margins, net 0.828) & Mean expected profit & Worst scenario & Base scenario\\
+\midrule
+Thresholds as chosen       & 6.6~\meur{} & $+1.2$~\meur{} & 5.3~\meur{}\\
+$\tau = 15\%$ everywhere   & 5.9~\meur{} & $+0.2$~\meur{} & 4.7~\meur{}\\
+$\tau = 20\%$ everywhere   & 4.7~\meur{} & $-0.5$~\meur{} & 3.6~\meur{}\\
+$\tau = 25\%$ everywhere   & 3.1~\meur{} & $-1.1$~\meur{} & 2.6~\meur{}\\
+$\tau = 30\%$ everywhere   & 2.4~\meur{} & $-1.3$~\meur{} & 2.1~\meur{}\\
+Chosen thresholds, no offer instead of the net & 4.6~\meur{} & $+1.2$~\meur{} & 4.6~\meur{}\\
+\bottomrule
+\end{tabular}
+\caption{Sensitivity to the rejection threshold.}
+\label{tab:tau}
+\end{table}
+
+\subsection{The net rate: what if another team uses a safety net too?}
+\label{sec:net}
+Left alone, the optimizer picks the highest allowed net (0.989), because none of the twelve scenarios contains a
+competitor net below 0.99. But a net is only taken by applicants nobody else serves more cheaply, so its level
+matters only \emph{relative to other nets}, and the 2\% preference makes that comparison a step function: against
+a competitor net at $x$ we win every abandoned applicant if ours is below $x - 0.02$, only our own fans if it is
+within $\pm 0.02$ of $x$, and nothing if it is above $x + 0.02$.
+
+\paragraph{Step 1: competitors who net above a high threshold.} We first let the base competitors (who reject
+above a 25\% PD) replace ``no offer'' by a net at 1.00, 0.99, 0.95, 0.90, 0.85, 0.80 or 0.70, thirteen cases in
+all including non-netting ones. Lowering our net from 0.989 to 0.90 costs 0.14~\meur{} if nobody else nets and
+gains 1.4~\meur{} on average if somebody does; below 0.85 the lost margin outweighs the protection. Cheap
+insurance, but small stakes: these competitors abandon only 0.8\% of the applicants.
+
+\paragraph{Step 2: clones.} A team that reasons like us would not only net; it would also stop lending at
+normal rates in the 10--25\% PD band, as we do. We call such a team a \emph{clone}: it applies our rule
+(Table~\ref{tab:rule}) to its own PD estimate, with a net of its choosing. The consequences are of a different
+order of magnitude:
+\begin{itemize}
+  \item With two clones, the band where all three lenders net is \textbf{34\% of applicants} (73\% of the ones we
+        net). It defaults at 18.7\%, so its break-even net rate is only 0.23 and a loan at 83\% earns about
+        5,000~\texteuro{} in expectation.
+  \item Whoever is lowest within 2\% takes the band: 34,000 loans, \textbf{65~\meur{}} if we only keep our own
+        fans, \textbf{150 to 190~\meur{}} if we take all of it. The whole normal game is worth 5~\meur{}.
+  \item Hence, if any team nets the band, the ranking of stage 1 is decided by the net war, not by careful
+        pricing. The rules make this possible because borrowers have no outside option: whoever receives an offer
+        borrows, at 83\% if need be.
+\end{itemize}
+
+\begin{table}[h]\centering\footnotesize
+\begin{tabular}{lrr@{\hskip 0.8cm}rrrrrr}
+\toprule
+ & Nobody & One clone at & \multicolumn{6}{c}{Both competitors are clones with a net at}\\
+Our net & nets & 0.898, one base & 0.989 & 0.95 & 0.898 & 0.87 & 0.85 & 0.80\\
+\midrule
+0.989 & 6.1 &  4.8 &  75 &   5 &   5 &   5 &   5 &   5\\
+0.898 & 5.7 & 13.3 & 190 & 190 &  67 &   5 &   5 &   5\\
+0.877 & 5.6 & 16.9 & 184 & 184 & 184 &  65 &   5 &   5\\
+0.830 & 5.4 & 15.6 & 171 & 171 & 171 & 171 & 171 &   5\\
+0.750 & 5.0 & 13.4 & 149 & 149 & 149 & 149 & 149 & 149\\
+\bottomrule
+\end{tabular}
+\caption{Our expected profit (\meur{}) by the level of our net, against clones at various nets (margins and
+thresholds as chosen). ``Nobody nets'' is the base scenario.}
+\label{tab:clones}
+\end{table}
+
+Table~\ref{tab:clones} shows the step structure at work. At 0.898 we would take everything from a clone at 0.95
+or above, keep only our fans against a clone at exactly 0.898 (an exact tie is plausible: it is the obvious
+``just below 0.90''), and get \emph{nothing} from a clone at 0.87 or 0.85 -- a regret of 100 to 170~\meur{}.
+Going lower is almost free in the world where nobody nets: from 0.898 to 0.83 costs 0.33~\meur{}.
+
+\paragraph{The decision.} Table~\ref{tab:decision} weighs 26 competitor cases (nobody nets; base competitors
+with nets; moderate clones that keep lending normally up to twice our thresholds; one clone and one base
+competitor; two clones) under three priors on how likely clones are. Within a family the cases are
+equally likely; the family probabilities are: skeptical 70 / 15 / 5 / 7 / 3\%, moderate 50 / 20 / 10 / 12 / 8\%,
+paranoid 30 / 20 / 15 / 15 / 20\%.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Our net & Skeptical prior & Moderate prior & Paranoid prior\\
+\midrule
+0.989 &  5.4 &  5.5 &  6.1\\
+0.950 &  6.0 &  7.1 &  9.6\\
+0.920 &  6.6 &  8.8 & 13.6\\
+0.898 &  7.3 & 10.5 & 17.5\\
+0.877 &  8.0 & 12.3 & 22.0\\
+0.850 &  8.6 & 14.0 & 25.9\\
+\textbf{0.830} & \textbf{8.8} & \textbf{14.5} & \textbf{27.2}\\
+0.800 &  8.6 & 14.2 & 26.8\\
+0.750 &  8.6 & 14.3 & 27.1\\
+0.700 &  8.4 & 14.1 & 26.8\\
+0.600 &  7.4 & 12.2 & 23.3\\
+No offer & 4.7 & 4.7 & 4.8\\
+\bottomrule
+\end{tabular}
+\caption{Prior-weighted expected profit (\meur{}) as a function of our net rate, margins and thresholds as
+chosen.}
+\label{tab:decision}
+\end{table}
+
+Three conclusions follow.
+\begin{enumerate}
+  \item \textbf{0.83 is the best level under every prior}, even the skeptical one where both competitors are
+        clones with only 3\% probability, and the curve is flat between 0.75 and 0.85. The asymmetry drives it:
+        being too high against a clone costs 100~\meur{}, being too low when nobody nets costs 0.3~\meur{}.
+        Below 0.70 the net starts winning genuinely terrible borrowers from competitors who lend to everyone at
+        70--85\%, which sets the floor.
+  \item \textbf{Lowering the thresholds further does not pay.} Re-optimizing the whole rule with clones in the
+        scenario mix nets even more applicants (above a 4--8\% PD at low income) with a net at 0.70. That rule
+        earns 1.1~\meur{} less in the world where nobody nets (4.1 against 5.2~\meur{}) and only beats the chosen
+        rule under the paranoid prior. We keep the thresholds of Table~\ref{tab:rule} and will revisit them in
+        stage 2 with real information.
+  \item \textbf{One tick below the round number.} At exactly $x - 0.02$ we tie on the clone's own fans, so we
+        submit \textbf{0.828} rather than 0.83: it beats a competitor net at 0.85, 0.898, 0.90, 0.95, 0.99 or 1.00
+        for all three applicant types, splits with a net between 0.81 and 0.848, and gets nothing from a net
+        below 0.808. Its cost if nobody nets at all is 0.35~\meur{}, about 6\% of our profit in that world.
+\end{enumerate}
+
+\section{The submission}
+\code{output/round1/rates\_round1.csv}: 100,000 rows, columns \code{id} (1 to 100,000, in order) and \code{rate},
+no missing value, maximum 0.828. 54,418 normal offers (7,270 below 4\%; 13,250 at 4--6\%; 11,382 at 6--8\%;
+14,389 at 8--12\%; 8,127 at 12--17.6\%) and 45,582 offers at 0.828. No rate is a round number, to avoid ties with
+competitors who use them.
+
+\section{Assumptions, risks and what could go wrong}
+\begin{itemize}
+  \item \textbf{Competitor behaviour is a guess.} The archetypes span cautious to aggressive and include the
+        lecture-formula mistake, selection-aware teams and clones of ourselves, and we optimized the average while
+        checking the worst case; but a behaviour outside this family (for instance random rates, or a flat 10\%
+        for everyone) was not simulated. The rule stays profitable in every scenario we tried; the main risk is
+        \emph{lower} profit, not a loss.
+  \item \textbf{The net war is winner-take-all.} A clone netting below 0.808 takes the whole band and leaves us
+        5~\meur{} against its 150~\meur{} or more. No choice of ours is safe against every level; 0.828 is a bet
+        that a competitor's net, if any, sits at 0.85 or above (the natural choices being 1.00, 0.99, 0.95, 0.90
+        and 0.85).
+  \item \textbf{The net earns nothing if the competitors lend to everybody}, and nothing if they both net below
+        0.808; neither case costs us money. It earns 0.4~\meur{} in the base scenario and far more if they reject
+        at 20\% or below. Against non-clone rejecters its value rests on the abandoned pool defaulting below 45\%,
+        which holds for any rejection threshold up to 25\% and fails only for a 0.2\% pool.
+  \item \textbf{The rules give borrowers no outside option.} If the simulation applies an unstated reservation
+        rate, the net earns nothing and costs nothing. The tie-breaking rule is also unknown; we avoided round
+        numbers.
+  \item \textbf{Our thresholds give up share.} We lend to 9--22\% of applicants depending on the scenario; above
+        10k of income we win our full third, below we deliberately walk away from the risky middle. This is a
+        choice, not an accident.
+  \item \textbf{The competitors' models are assumed as good as ours.} If theirs are worse, the curse is smaller
+        and their rejections noisier (better abandoned pool); if better, the curse is larger and the low thresholds
+        protect us. Applicant types are assumed uniform and independent of characteristics, as stated in the rules.
+  \item \textbf{Visibility.} 45\% of our offers at 82.8\% will be noticed in the stage-1 results. If it works, the
+        other teams will copy it in stage~2 and the band will be competed down towards its break-even. We bank it
+        while it is unique.
+\end{itemize}
+
+\section{Plan for stage 2}
+The stage-1 results give us the realized market: who each applicant borrowed from, who defaulted, and -- we hope
+-- the competitors' rates. The first thing to read is the net war: which teams netted, at what level and with
+what thresholds, and who took the band; that alone will explain most of the profit ranking. Then (i) infer each
+competitor's actual pricing function (regressing their rate on $X$ and the signals if rates are disclosed,
+otherwise from who won which applicant), (ii) measure the realized curse on our own loans segment by segment and
+compare it with the simulation, (iii) replace the archetypes with the two estimated competitors and re-optimize,
+and (iv) only then consider aggressive moves: undercutting where a competitor is shown to overprice, moving the
+net against theirs, revisiting the thresholds, and re-opening the 10--25\% PD band if the measured curse turns
+out smaller than simulated. Everything in this note is reproducible, so stage 2 is a change of inputs, not a
+rewrite.
+
+\section{Files and how to reproduce}
+Everything lives in the project folder.
+\begingroup\sloppy
+\begin{itemize}
+  \item \code{run\_round1.py} -- the whole pipeline. It regenerates the submission in about two minutes and
+        prints every table of Sections 4--5.5:
+        \begin{center}\code{python run\_round1.py --no-sex --net 0.828}\end{center}
+  \item \code{lending\_game/} -- the package: \code{features.py}, \code{models.py}, \code{simulator.py}
+        (rules of the game), \code{competitors.py} (archetypes, scenarios, clones), \code{strategy.py} (our rule,
+        optimizer).
+  \item \code{analysis/} -- \code{robustness\_round1.py} (thresholds, scenario weighting),
+        \code{net\_rate\_scenarios.py} (Step 1 of Section~\ref{sec:net}) and \code{clone\_scenarios.py}
+        (Step 2 and the decision table).
+  \item \code{output/round1/}:
+    \begin{itemize}
+      \item \code{rates\_round1.csv} -- the submission;
+      \item \code{strategy\_round1.json} -- all parameters of the rule and of the model;
+      \item \code{diagnostics\_round1.md} -- every table printed by the pipeline;
+      \item \code{clone\_profit\_table\_*.csv} -- our profit by net level against every clone case;
+      \item \code{new\_applications\_scored.csv} -- our PD and rate per applicant, to diagnose stage 1 later;
+      \item \code{oos\_probas\_sex0.npz} -- out-of-sample PDs of the four models on the past loans.
+    \end{itemize}
+\end{itemize}
+\endgroup
+
+\end{document}
